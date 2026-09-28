@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "id": "io.github.saikomantisu.dino",
+  "name": "Dino",
+  "version": "1.0.0",
+  "author": "Saikomantisu",
+  "license": "MIT",
+  "description": "The Chrome offline T-rex runner, in a popup under your bar. Jump cacti, duck pterodactyls, beat your high score.",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Dino",
+    "description": "Chrome's offline T-rex runner game",
+    "category": "Fun",
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {
+      "scale": 1,
+      "showHighScore": false
+    },
+    "schema": [
+      {
+        "key": "scale",
+        "type": "number",
+        "label": "Game size (1 = 600×150)"
+      },
+      {
+        "key": "showHighScore",
+        "type": "boolean",
+        "label": "Show high score in the bar"
+      }
+    ]
+  }
+}

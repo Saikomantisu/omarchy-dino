@@ -2,62 +2,65 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 
-// High score and a lifetime tally, kept in a small JSON file. One of these
-// lives per bar instance; they all watch the same file, so a record set on one
-// monitor shows up on the others.
+// High score and a lifetime tally. The shell never opens the score file
+// itself: bin/dino-scores does every read and write, refusing symlinks,
+// foreign or oversized files, and replacing the file atomically through a
+// private temporary file. One store lives per bar instance; each re-reads the
+// file when its panel opens, so a record set on one monitor shows on the rest.
 Item {
   id: root
 
-  readonly property string directory: (Quickshell.env("XDG_STATE_HOME") || (Quickshell.env("HOME") + "/.local/state")) + "/omarchy-dino"
-  readonly property string path: directory + "/scores.json"
+  readonly property string helper: String(Qt.resolvedUrl("bin/dino-scores")).replace(/^file:\/\//, "")
 
   property int highScore: 0
   property int runs: 0
-  property bool directoryReady: false
+  property var queue: []
 
   function adopt(text) {
-    var data = {}
-    try { data = JSON.parse(text || "{}") || {} } catch (e) { data = {} }
+    var data = null
+    try { data = JSON.parse(text) } catch (e) { return }
+    if (!data || typeof data !== "object") return
     highScore = Math.max(0, Math.floor(Number(data.highScore) || 0))
     runs = Math.max(0, Math.floor(Number(data.runs) || 0))
   }
 
-  function persist() {
-    if (!directoryReady) return
-    file.setText(JSON.stringify({ highScore: highScore, runs: runs }, null, 2) + "\n")
+  function run(args) {
+    queue.push(["python3", helper].concat(args))
+    if (!proc.running) next()
   }
 
-  // Returns true when the run set a new record.
+  function next() {
+    if (queue.length === 0) return
+    proc.command = queue.shift()
+    proc.running = true
+  }
+
+  function refresh() { run(["read"]) }
+
+  // Shown straight away; the helper's answer confirms it.
   function submit(score) {
+    score = Math.max(0, Math.floor(Number(score) || 0))
+    if (score > highScore) highScore = score
     runs += 1
-    var record = score > highScore
-    if (record) highScore = score
-    persist()
-    return record
+    run(["submit", String(score)])
   }
 
   function resetHighScore() {
     highScore = 0
-    persist()
+    run(["reset"])
   }
 
-  FileView {
-    id: file
-    path: root.directoryReady ? root.path : ""
-    watchChanges: true
-    atomicWrites: true
-    printErrors: false
-    onLoaded: root.adopt(text())
-    onLoadFailed: root.adopt("")
-    onFileChanged: reload()
-  }
-
-  // FileView can't create the directory it writes into.
   Process {
-    id: ensureDirectory
-    command: ["mkdir", "-p", root.directory]
-    onExited: root.directoryReady = true
+    id: proc
+    stdout: StdioCollector { id: out; waitForEnd: true }
+    stderr: StdioCollector {
+      onStreamFinished: if (text.trim() !== "") console.warn("dino: " + text.trim())
+    }
+    onExited: function(code) {
+      if (code === 0) root.adopt(out.text)
+      root.next()
+    }
   }
 
-  Component.onCompleted: ensureDirectory.running = true
+  Component.onCompleted: refresh()
 }

@@ -93,6 +93,7 @@ Panel {
 
   onOpenedChanged: {
     if (opened) {
+      if (store) store.refresh()
       syncHighScore()
       canvas.requestPaint()
     } else {
